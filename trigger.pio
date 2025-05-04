@@ -1,0 +1,48 @@
+;
+; Raspberry Pi Pico
+; PIO Episode 14 Abitrary Waveform Generator
+; PIO program
+;
+
+.program trigger
+
+; Parallel output 4 bytes per 32 bit word.  
+
+pull   block       ; block until CPU writes a word
+mov    x, osr      ; x = delay_cycles
+wait 1 gpio 0
+
+first:
+    jmp  x-- first         
+    set pins, 1 
+    set pins, 0 
+idle:
+    jmp idle
+
+
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void trigger_program_init(PIO pio, uint sm, uint offset, uint pin, uint npins, float freq) {
+
+    // Set the pin group GPIO function (connect PIO to the pad)
+	// "pin" is start of output pin group, "npins" is the number of pins in the output pin group
+	pio_gpio_init(pio, pin);
+	
+    // Set the pin group's direction to output 
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, npins, true);
+    pio_sm_config c = trigger_program_get_default_config(offset);
+
+    // Map the DAC outputs to 'npins' starting at 'pin'
+	sm_config_set_set_pins(&c, pin, npins);
+
+	// set the state machine clock rate
+	float div = clock_get_hz(clk_sys) / freq ;  // calculates the clock divider
+	sm_config_set_clkdiv(&c, div);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, false);
+}
+%}

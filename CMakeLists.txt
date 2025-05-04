@@ -40,8 +40,14 @@ pico_sdk_init()
 add_executable(${PROJECT_NAME}
 	AWG_1.c
 	AWG_1.pio
+    clock.pio
+    trigger.pio
+    enable.pio
 )
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/AWG_1.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/clock.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/trigger.pio)
+pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/enable.pio)
 
 #target_sources(AWG_1.pio PRIVATE AWG_1.c)
 # Pull in our pico_stdlib which pulls in commonly used features
