@@ -17,7 +17,7 @@
 
 #define PI 3.1428592654
 #define SM_CLK_FREQ 10000000
-#define TRIGGER_DELAY 6
+#define TRIGGER_DELAY 1
 
 static uint32_t awg_buff[256] __attribute__((aligned(256)));
 static int dma_chan = -1;
@@ -29,6 +29,7 @@ static bool pio_program_loaded = false;
 static bool clock_program_loaded = false;
 static bool trigger_program_loaded = false;
 static bool enable_program_loaded = false;
+static uint pio_program_offset;
 static int dma_repeat_target = 0;
 static int dma_repeat_count = 0;
 
@@ -98,6 +99,9 @@ void dma_handler() {
     dma_channel_acknowledge_irq0(dma_chan);
     dma_repeat_count++;
     if (dma_repeat_count >= dma_repeat_target) {
+        pio_sm_set_enabled(pio0, pio_sm, false);
+        pio_sm_restart     (pio0, pio_sm);
+        pio_sm_clear_fifos (pio0, pio_sm);
         dma_channel_abort(dma_chan);
         // printf("DMA complete after %d repeats.\n", dma_repeat_count);
     } else {
@@ -120,8 +124,6 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
         printf("awg_buff[%d] = 0x%08X\n", i, awg_buff[i]);
     }
 
-    static uint pio_program_offset;
-
     PIO pio = pio0;
     if (!pio_program_loaded) {
         pio_program_offset = pio_add_program(pio, &pio_byte_out_program);
@@ -137,11 +139,10 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
     ready_trigger(17, 1);
      
 
-    // pio_interrupt_clear(pio1, 1u << 0);
     pio_sm_clear_fifos(pio1, trigger_sm);
     pio_sm_put_blocking(pio1, trigger_sm, trigger_delay);
     pio_sm_set_enabled(pio1, trigger_sm, true);
-    // pio_interrupt_set(pio1, 1u << 0 );
+
     pio_sm_set_enabled(pio0, pio_sm,  true);
     
     
@@ -209,8 +210,6 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
         awg_buff[i] = value_array[i%8];
         printf("awg_buff[%d] = 0x%08X\n", i, awg_buff[i]);
     }
-
-    static uint pio_program_offset;
 
     PIO pio = pio0;
     if (!pio_program_loaded) {
