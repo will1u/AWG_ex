@@ -9,8 +9,8 @@
 ; Parallel output 8 bytes per 32 bit word.  
 
 
-wait 1 gpio 16
-
+wait irq 0
+pull block
 loop:
     out  pins, 16 
     jmp loop

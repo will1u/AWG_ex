@@ -5,7 +5,7 @@
 ;
 
 .program trigger
-.side_set 1 opt
+
 ; Parallel output 4 bytes per 32 bit word.  
 
 ; try getting the trigger to send the interrupt to start the waveform first
@@ -14,7 +14,8 @@
 
 pull   block       ; block until CPU writes a word
 mov    x, osr      ; x = delay_cycles
-wait 1 gpio 0
+irq set 0 
+
 first:
     jmp  x-- first
     set pins, 1
@@ -30,12 +31,6 @@ static inline void trigger_program_init(PIO pio, uint sm, uint offset, uint pin,
     // Set the pin group GPIO function (connect PIO to the pad)
 	// "pin" is start of output pin group, "npins" is the number of pins in the output pin group
 	pio_gpio_init(pio, pin);
-
-
-    // 4) Tell it that side-set bit maps to “side_pin” (GPIO 17)
-    pio_sm_set_consecutive_pindirs(pio, sm, side_pin, 1, true);
-    sm_config_set_sideset_pins(&c, 17);
-
 
     // Set the pin group's direction to output 
     pio_sm_set_consecutive_pindirs(pio, sm, pin, npins, true);

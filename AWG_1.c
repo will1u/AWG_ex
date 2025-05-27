@@ -1,8 +1,3 @@
-// add parameter after x clock cycles (after signal pattern) to send out the trigger signal
-// integrate clock and trigger pio together
-
-// oh wait this is super easy ill just add it onto the waveform
-
 #include <stdio.h>
 #include <math.h>
 #include "pico/stdlib.h"
@@ -17,7 +12,7 @@
 
 #define PI 3.1428592654
 #define SM_CLK_FREQ 10000000
-#define TRIGGER_DELAY 1
+#define TRIGGER_DELAY 4
 
 static uint32_t awg_buff[256] __attribute__((aligned(256)));
 static int dma_chan = -1;
@@ -32,9 +27,10 @@ static bool enable_program_loaded = false;
 static uint pio_program_offset;
 static int dma_repeat_target = 0;
 static int dma_repeat_count = 0;
+PIO trigger_pio = pio0;
+PIO wave_pio = pio0;
 
-
-void start_clock(uint OUT_PIN_NUMBER, uint NPINS){ // good
+void start_clock(uint OUT_PIN_NUMBER, uint NPINS){ 
 
     static uint pio_program_offset;
 
@@ -79,7 +75,7 @@ void ready_trigger(uint OUT_PIN_NUMBER, uint NPINS) {
 
     static uint trigger_program_offset;
 
-    PIO pio = pio1;
+    PIO pio = trigger_pio;
     if (!trigger_program_loaded) {
         trigger_program_offset = pio_add_program(pio, &trigger_program);
         trigger_program_loaded = true;
@@ -91,6 +87,7 @@ void ready_trigger(uint OUT_PIN_NUMBER, uint NPINS) {
         pio_sm_set_enabled(pio, trigger_sm, false);
     }
 
+    pio_interrupt_clear(trigger_pio, 1u << 0);
     trigger_program_init(pio, trigger_sm, trigger_program_offset, OUT_PIN_NUMBER, NPINS, SM_CLK_FREQ);
     
 }
@@ -110,12 +107,12 @@ void dma_handler() {
 
 }
 
-void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period_length, int trigger_delay) {
+void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_delay) {
     // must call stdio_init_all() before using this
     // add in the trigger 
 
-    const int total_samples = repeats * period_length / 2;
-    const int dma_transfers = total_samples/2;
+    // const int total_samples = repeats;
+    const int dma_transfers = repeats;
 
     memset(awg_buff, 0, sizeof(awg_buff));
 
@@ -124,7 +121,7 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
         printf("awg_buff[%d] = 0x%08X\n", i, awg_buff[i]);
     }
 
-    PIO pio = pio0;
+    PIO pio = wave_pio;
     if (!pio_program_loaded) {
         pio_program_offset = pio_add_program(pio, &pio_byte_out_program);
         pio_program_loaded = true;
@@ -137,15 +134,6 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
     }
     pio_byte_out_program_init(pio, pio_sm, pio_program_offset, OUT_PIN_NUMBER, NPINS, SM_CLK_FREQ);
     ready_trigger(17, 1);
-     
-
-    pio_sm_clear_fifos(pio1, trigger_sm);
-    pio_sm_put_blocking(pio1, trigger_sm, trigger_delay);
-    pio_sm_set_enabled(pio1, trigger_sm, true);
-
-    pio_sm_set_enabled(pio0, pio_sm,  true);
-    
-    
 
     if (dma_chan == -1) {
         dma_chan = dma_claim_unused_channel(true);
@@ -160,7 +148,8 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
     channel_config_set_transfer_data_size(&cfg, DMA_SIZE_32);
     channel_config_set_read_increment(&cfg, true);
     channel_config_set_write_increment(&cfg, false);
-    channel_config_set_dreq(&cfg, DREQ_PIO0_TX0 + pio_sm);
+    // channel_config_set_dreq(&cfg, DREQ_PIO0_TX0 + pio_sm); // used for when multiple pio blocks are used
+    channel_config_set_dreq(&cfg, DREQ_PIO0_TX0);
     channel_config_set_ring(&cfg, false, 0);
 
     dma_channel_configure(
@@ -171,16 +160,21 @@ void dma_flash_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, uint period
         dma_transfers,
         false
     );
-
+    
     dma_channel_set_irq0_enabled(dma_chan, true);
     irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
     irq_set_enabled(DMA_IRQ_0, true);
-
     
+    pio_sm_set_enabled(wave_pio, pio_sm,  true);
+    pio_sm_put_blocking(trigger_pio, trigger_sm, trigger_delay);
+    pio_sm_set_enabled(trigger_pio, trigger_sm, true);
+
     dma_channel_start(dma_chan);
-    printf("Started waveform: %d cycles x %d samples/cycle on GPIO %d (%d-bit output)\n",
-        repeats, period_length, OUT_PIN_NUMBER, NPINS);
-}
+    
+    
+    printf("Started waveform: %d cycles on GPIO %d (%d-bit output)\n",
+        repeats, OUT_PIN_NUMBER, NPINS);
+    }
 
 void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_delay) {
     // must call stdio_init_all() before using this
@@ -211,7 +205,7 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
         printf("awg_buff[%d] = 0x%08X\n", i, awg_buff[i]);
     }
 
-    PIO pio = pio0;
+    PIO pio = wave_pio;
     if (!pio_program_loaded) {
         pio_program_offset = pio_add_program(pio, &pio_byte_out_program);
         pio_program_loaded = true;
@@ -225,13 +219,7 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
     }
     pio_byte_out_program_init(pio, pio_sm, pio_program_offset, OUT_PIN_NUMBER, NPINS, SM_CLK_FREQ);
     ready_trigger(17, 1);
-
-    pio_interrupt_clear(pio0, 1u << 0);
-    pio_sm_put_blocking(pio1, trigger_sm, trigger_delay);
     
-    pio_sm_set_enabled(pio1, trigger_sm, true); 
-    pio_sm_set_enabled(pio0, pio_sm,  true);
-
     if (dma_chan == -1) {
         dma_chan = dma_claim_unused_channel(true);
     } else {
@@ -245,7 +233,8 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
     channel_config_set_transfer_data_size(&cfg, DMA_SIZE_32);
     channel_config_set_read_increment(&cfg, true);
     channel_config_set_write_increment(&cfg, false);
-    channel_config_set_dreq(&cfg, DREQ_PIO0_TX0 + pio_sm);
+    // channel_config_set_dreq(&cfg, DREQ_PIO0_TX0 + pio_sm); // use for multiple pios
+    channel_config_set_dreq(&cfg, DREQ_PIO0_TX0); 
     channel_config_set_ring(&cfg, false, 0);
 
     dma_channel_configure(
@@ -260,6 +249,10 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
     dma_channel_set_irq0_enabled(dma_chan, true);
     irq_set_exclusive_handler(DMA_IRQ_0, dma_handler);
     irq_set_enabled(DMA_IRQ_0, true);
+
+    pio_sm_set_enabled(wave_pio, pio_sm,  true);
+    pio_sm_put_blocking(trigger_pio, trigger_sm, trigger_delay);
+    pio_sm_set_enabled(trigger_pio, trigger_sm, true);
 
     dma_channel_start(dma_chan);
     printf("Started waveform: %d cycles x %d samples/cycle on GPIO %d (%d-bit output)\n",
@@ -289,7 +282,7 @@ int main() {
             printf("Enter number of repeats (empty is default as 1): ");
             scanf("%d", &repeats);
 
-            dma_flash_repeats(repeats, 0,16, 4, TRIGGER_DELAY);
+            dma_flash_repeats(repeats, 0,16, TRIGGER_DELAY);
             waitingForCommand = true;
         } 
 
