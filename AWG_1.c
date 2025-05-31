@@ -259,44 +259,75 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
         repeats, total_samples, OUT_PIN_NUMBER, NPINS);
 }
 
+int readline(char *buf, int maxlen) {
+    int i = 0;
+    while (i < maxlen - 1) {
+        int c = getchar_timeout_us(0); 
+        if (c == '\r' || c == '\n') {
+            putchar('\n'); 
+            break;
+        } else if (c >= 32 && c <= 126) {  
+            buf[i++] = c;
+            putchar(c);
+        }
+    }
+    buf[i] = '\0';
+    return i;
+}
+
 
 int main() {
-    stdio_init_all();  // set up to print out
+    stdio_init_all();
     start_clock(16, 1);
     start_enable(20, 1);
 
-	char userInput = '\0';
-    bool invalidInputDisplayed = false;
+    char inputBuffer[32];
     bool waitingForCommand = true;
+    bool invalidShown = false;
 
     while (true) {
         if (waitingForCommand) {
             printf("Command (1 = flash, 0 = step): \n");
-            waitingForCommand = false; 
+            waitingForCommand = false;
+            invalidShown = false;
         }
-        
-        userInput = getchar_timeout_us(10000);
-        
-        if (userInput == '1') {
-            int repeats = 1;
-            printf("Enter number of repeats (empty is default as 1): ");
-            scanf("%d", &repeats);
 
-            dma_flash_repeats(repeats, 0,16, TRIGGER_DELAY);
+        int len = readline(inputBuffer, sizeof(inputBuffer));
+        if (len == 0 && !invalidShown) {
+            printf("Invalid input, enter 0 for step and 1 for flash\n");
+            invalidShown = true;
             waitingForCommand = true;
-        } 
-
-        else if (userInput == '0') {
-            int repeats = 1;
+            continue;
+        }
+        if (strcmp(inputBuffer, "1") == 0) {
+            int repeats;
             printf("Enter number of repeats (empty is default as 1): ");
-            scanf("%d", &repeats);
-
-            dma_step_repeats(repeats, 0,16, TRIGGER_DELAY);
+            int len2 = readline(inputBuffer, sizeof(inputBuffer));
+            if (len2 > 0 && sscanf(inputBuffer, "%d", &repeats) != 1) {
+                repeats = 1;
+            }
+            dma_flash_repeats(repeats, 0, 16, TRIGGER_DELAY);
             waitingForCommand = true;
+        }
 
+        else if (strcmp(inputBuffer, "0") == 0) {
+            int repeats;
+            printf("Enter number of repeats (empty is default as 1): ");
+            int len2 = readline(inputBuffer, sizeof(inputBuffer));
+            if (len2 > 0 && sscanf(inputBuffer, "%d", &repeats) != 1) {
+                repeats = 1;
+            }
+            dma_step_repeats(repeats, 0, 16, TRIGGER_DELAY);
+            waitingForCommand = true;
+        }
 
+        else if (len == 0 && !invalidShown) {
+            printf("Invalid input, enter 0 for step and 1 for flash\n");
+            invalidShown = true;
+            waitingForCommand = true;
         }
     }
 }
+
 
     
