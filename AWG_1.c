@@ -9,6 +9,8 @@
 #include "trigger.pio.h"
 #include "enable.pio.h"
 #include <string.h>
+#include "pico/bootrom.h"
+#include "pico/stdlib.h"
 
 #define PI 3.1428592654
 #define SM_CLK_FREQ 10000000
@@ -319,6 +321,10 @@ int main() {
             }
             dma_step_repeats(repeats, 0, 16, TRIGGER_DELAY);
             waitingForCommand = true;
+        }
+
+        else if (strcmp(inputBuffer, "reboot") == 0) {
+            reset_usb_boot(0, 0);
         }
 
         else if (len == 0 && !invalidShown) {
