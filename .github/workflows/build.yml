@@ -74,4 +74,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AWG_ex
-          path: /home/runner/work/AWG_ex/AWG_ex/AWG_ex/build/*.uf2
+          path: /home/runner/work/awg_ex/awg_ex/AWG_ex/build/*.uf2
