@@ -70,3 +70,7 @@ jobs:
           cmake --build .
           cd ..
           ls -lrt build/*.uf2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AWG_ex
+          path: build/*.uf2
