@@ -289,7 +289,7 @@ int main() {
 
     while (true) {
         if (waitingForCommand) {
-            printf("Command (1 = flash, 0 = step): \n");
+            printf("Command (1 = flash, 0 = step, or reboot = reboot and BOOTSEL): \n");
             waitingForCommand = false;
             invalidShown = false;
         }
