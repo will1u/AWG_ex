@@ -69,8 +69,9 @@ jobs:
           cmake .. -G "Ninja" -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_C_COMPILER:FILEPATH=/opt/gcc-arm-none-eabi/bin/arm-none-eabi-gcc -DCMAKE_CXX_COMPILER:FILEPATH=/opt/gcc-arm-none-eabi/bin/arm-none-eabi-g++ -DPICO_TOOLCHAIN_PATH=/opt/gcc-arm-none-eabi/bin -DPICO_SDK_PATH=../../pico-sdk -DCMAKE_BUILD_TYPE=Release -DPICO_BOARD=pico
           cmake --build .
           cd ..
-          ls -lrt build/*.uf2
-      - uses: actions/upload-artifact@v4
+          ls -dlrt $PWD/build/*.uf2
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: AWG_ex
-          path: build/*.uf2
+          path: /home/runner/work/AWG_ex/AWG_ex/AWG_ex/build/*.uf2
