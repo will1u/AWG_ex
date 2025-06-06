@@ -261,7 +261,7 @@ void dma_step_repeats(int repeats, uint OUT_PIN_NUMBER, uint NPINS, int trigger_
         repeats, total_samples, OUT_PIN_NUMBER, NPINS);
 }
 
-int readline(char *buf, int maxlen) {
+int readline1(char *buf, int maxlen) {
     int i = 0;
     while (i < maxlen - 1) {
         int c = getchar_timeout_us(0); 
@@ -276,7 +276,6 @@ int readline(char *buf, int maxlen) {
     buf[i] = '\0';
     return i;
 }
-
 
 int main() {
     stdio_init_all();
@@ -293,11 +292,13 @@ int main() {
             waitingForCommand = false;
             invalidShown = false;
         }
-
-        int len = readline(inputBuffer, sizeof(inputBuffer));
-        if (len == 0 && !invalidShown) {
-            printf("Invalid input, enter 0 for step and 1 for flash\n");
-            invalidShown = true;
+        
+        int len = readline1(inputBuffer, sizeof(inputBuffer));
+        if (len == 0) {
+            if (!invalidShown) {
+                printf("Invalid input, enter 0 for step and 1 for flash\n");
+                invalidShown = true;
+            }
             waitingForCommand = true;
             continue;
         }
@@ -327,11 +328,7 @@ int main() {
             reset_usb_boot(0, 0);
         }
 
-        else if (len == 0 && !invalidShown) {
-            printf("Invalid input, enter 0 for step and 1 for flash\n");
-            invalidShown = true;
-            waitingForCommand = true;
-        }
+
     }
 }
 
