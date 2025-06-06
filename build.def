@@ -1,0 +1,78 @@
+Bootstrap: docker
+From: ubuntu:22.04
+
+%labels
+    Maintainer ngpaladi
+    Version v1.0
+    Description Build RasPi Pico projects for a given source dir; outputs UF2s; cleans up.
+
+%environment
+    export PATH=/opt/gcc-arm-none-eabi/bin:$PATH
+    export PICO_TOOLCHAIN_PATH=/opt/gcc-arm-none-eabi/bin
+
+%post
+    apt-get update && apt-get install -y \
+        cmake \
+        ninja-build \
+        curl \
+        xz-utils \
+        git \
+        python3 \
+        build-essential \
+        libusb-1.0-0 \
+        libusb-1.0-0-dev
+
+    # Install ARM GCC cross-compiler
+    curl -Lo gcc-arm-none-eabi.tar.xz https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+    mkdir -p /opt/gcc-arm-none-eabi
+    tar xf gcc-arm-none-eabi.tar.xz --strip-components=1 -C /opt/gcc-arm-none-eabi
+    rm gcc-arm-none-eabi.tar.xz
+
+    # Clone pico-sdk once in the container
+    cd /opt && git clone --recurse-submodules https://github.com/raspberrypi/pico-sdk.git
+    cd pico-sdk && git checkout master && git submodule update --init
+
+%runscript
+    #! /bin/bash
+    if [ "$#" -ne 1 ]; then
+      echo "Usage: apptainer run build/build.sif /path/to/source"
+      exit 1
+    fi
+
+    SRC_DIR="$1"
+    PICO_SDK_PATH=/opt/pico-sdk
+    TOOLCHAIN_PATH=/opt/gcc-arm-none-eabi/bin
+    NAME=`basename $SRC_DIR`
+
+    if [ ! -d "$SRC_DIR" ]; then
+      echo "Error: Source directory '$SRC_DIR' does not exist."
+      exit 1
+    fi
+
+    BUILD_PARENT="$SRC_DIR/build"
+    mkdir -p "$BUILD_PARENT"
+
+    for board in pico pico_w pico2 pico2_w; do
+      BUILD_DIR="$SRC_DIR/build_$board"
+      mkdir -p "$BUILD_DIR"
+      cd "$BUILD_DIR"
+
+      cmake "$SRC_DIR" -G Ninja \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE \
+        -DCMAKE_C_COMPILER="$TOOLCHAIN_PATH/arm-none-eabi-gcc" \
+        -DCMAKE_CXX_COMPILER="$TOOLCHAIN_PATH/arm-none-eabi-g++" \
+        -DPICO_TOOLCHAIN_PATH="$TOOLCHAIN_PATH" \
+        -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DPICO_BOARD="$board"
+
+      cmake --build . 
+
+      cp *.uf2 "$BUILD_PARENT/$NAME_${board}.uf2"
+
+      # Clean up build directory
+      cd "$SRC_DIR"
+      rm -rf "build_$board"
+    done
+
+    echo "Build complete. UF2 files in $BUILD_PARENT"

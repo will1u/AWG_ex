@@ -19,7 +19,7 @@ set(sdkVersion 2.1.1)
 set(toolchainVersion 14_2_Rel1)
 set(picotoolVersion 2.1.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
-if (EXISTS ${picoVscode})
+if (EXISTS ${picoVscode} AND NOT DEFINED $ENV{APPTAINER_NAME})
     include(${picoVscode})
 endif()
 
